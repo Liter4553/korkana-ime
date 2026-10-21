@@ -1,0 +1,8 @@
+# 저장소 안에서는 LF 로 통일한다 (Windows 전용 프로젝트라도 diff 가 깨끗해진다)
+* text=auto eol=lf
+
+# 윈도우에서 실행되는 배치 파일은 CRLF 여야 한다
+*.bat text eol=crlf
+
+# 바이너리
+*.ico binary

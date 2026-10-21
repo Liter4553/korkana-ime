@@ -1,0 +1,5 @@
+# 한자 변환용 Mozc 사전. 없어도 가나 입력기로는 동작한다.
+mozcpy>=0.3.0
+
+# 배포 빌드에만 필요 (make_release.py)
+# pyinstaller>=6.0

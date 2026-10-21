@@ -1,0 +1,15 @@
+# 빌드 산출물 (전부 make_release.py 로 다시 만들 수 있다)
+build/
+dist/
+release/
+
+# 실행 중 생기는 것
+*.log
+__pycache__/
+*.py[cod]
+
+# 편집기 / OS
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini
