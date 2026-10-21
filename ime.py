@@ -31,9 +31,19 @@ from winime import winapi
 HOTKEY_TOGGLE = 0x4A      # J - IME 켜기/끄기
 HOTKEY_KANA = 0x4B        # K - 히라가나/가타카나
 HOTKEY_QUIT = 0x51        # Q - 종료
+HOTKEY_PUNCT = 0x50       # P - 구두점 치환 켜기/끄기
 
 VK_UP, VK_DOWN = 0x26, 0x28
 VK_1, VK_9 = 0x31, 0x39
+
+# 일본어 구두점 치환. 전부 Shift 안 누른 상태만 바꾼다
+# (Shift 를 누르면 > < { } 라서 그대로 통과시켜야 한다).
+PUNCTUATION = {
+    0xBE: "。",     # .
+    0xBC: "、",     # ,
+    0xDB: "「",     # [
+    0xDD: "」",     # ]
+}
 
 # 그 자체로는 글자를 만들지 않는 키들.
 # 이 키들에서 조립 중인 글자를 확정해 버리면 Shift+O(ㅒ) / Shift+P(ㅖ) 처럼
@@ -72,10 +82,12 @@ def _is_text_key(vk: int) -> bool:
 class KoreanKanaIME:
     """키 이벤트를 받아 일본어를 주입하는 상태 기계."""
 
-    def __init__(self, enabled: bool = False, katakana: bool = False):
+    def __init__(self, enabled: bool = False, katakana: bool = False,
+                 punctuation: bool = True):
         self.comp = Composition()
         self.enabled = enabled
         self.katakana = katakana
+        self.punctuation = punctuation
         self._lock = threading.Lock()
         self._swallowed = set()        # keydown 을 먹은 키의 keyup 도 먹는다
         self._quit = threading.Event()
@@ -91,6 +103,7 @@ class KoreanKanaIME:
             return {
                 "enabled": self.enabled,
                 "katakana": self.katakana,
+                "punctuation": self.punctuation,
                 "reading": reading,
                 "hangul": comp.full_hangul(),
                 "candidates": list(comp.cands),
@@ -115,6 +128,11 @@ class KoreanKanaIME:
             self._commit_locked()
             self.katakana = not self.katakana
         applog.log(f"[모드] {'가타카나' if self.katakana else '히라가나'}")
+
+    def toggle_punctuation(self) -> None:
+        with self._lock:
+            self.punctuation = not self.punctuation
+        applog.log(f"[구두점] {'。、「」' if self.punctuation else '.,[] 그대로'}")
 
     # ------------------------------------------------------------ 확정
     def _commit_locked(self) -> None:
@@ -160,6 +178,9 @@ class KoreanKanaIME:
             if vk == HOTKEY_KANA:
                 self.toggle_katakana()
                 return True
+            if vk == HOTKEY_PUNCT:
+                self.toggle_punctuation()
+                return True
             if vk == HOTKEY_QUIT:
                 self.request_quit()
                 return True
@@ -176,14 +197,14 @@ class KoreanKanaIME:
         with self._lock:
             # --- 후보 선택 중이면 그쪽 키맵이 먼저
             if self.comp.selecting():
-                result = self._handle_selecting(vk)
+                result = self._handle_selecting(vk, shift)
                 if result is not _FALLTHROUGH:
                     return result
                 # _FALLTHROUGH: 후보를 확정했고, 이 키는 새 입력으로 다시 본다
 
             return self._handle_composing(vk, shift)
 
-    def _handle_selecting(self, vk):
+    def _handle_selecting(self, vk, shift):
         """후보창이 떠 있을 때의 키맵. _FALLTHROUGH 면 조립 키맵으로 넘긴다."""
         comp = self.comp
 
@@ -213,6 +234,8 @@ class KoreanKanaIME:
         self._commit_locked()
         if winapi.VK_A <= vk <= winapi.VK_Z:
             return _FALLTHROUGH                # 글자 키는 새 입력으로 다시 본다
+        if self.punctuation and not shift and vk in PUNCTUATION:
+            return _FALLTHROUGH                # 구두점은 치환해서 넣어야 한다
         if _is_text_key(vk):
             winapi.send_vk(vk)                 # 확정분보다 먼저 도착하지 않게
             return True
@@ -240,6 +263,12 @@ class KoreanKanaIME:
         # --- 하이픈: 장음 부호 ー
         if vk == winapi.VK_OEM_MINUS and not shift:
             comp.feed_choon()
+            return True
+
+        # --- 구두점 치환: . , [ ] -> 。、「」
+        if self.punctuation and not shift and vk in PUNCTUATION:
+            self._commit_locked()
+            winapi.send_text(PUNCTUATION[vk])
             return True
 
         # --- 스페이스: 한자 변환 시작 (= IME 의 변환키)

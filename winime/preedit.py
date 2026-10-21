@@ -107,8 +107,7 @@ class PreeditOverlay:
         self._text_shown = False
 
         self.hint_label = tk.Label(
-            top, text="Ctrl+Alt+J 끄기 · K 가나전환 · Q 종료",
-            font=("Malgun Gothic", 8), bg=BG, fg=DIM, padx=4,
+            top, text="", font=("Malgun Gothic", 8), bg=BG, fg=DIM, padx=4,
         )
         self.hint_label.pack(side="right")
 
@@ -148,8 +147,9 @@ class PreeditOverlay:
             return
 
         snap = self.ime.snapshot()
-        key = (snap["enabled"], snap["katakana"], snap["hangul"],
-               snap["reading"], tuple(snap["candidates"]), snap["index"])
+        key = (snap["enabled"], snap["katakana"], snap["punctuation"],
+               snap["hangul"], snap["reading"],
+               tuple(snap["candidates"]), snap["index"])
         if key != self._last:
             self._render(snap)
             self._last = key
@@ -162,6 +162,11 @@ class PreeditOverlay:
                 else ("kata" if snap["katakana"] else "hira"))
         bg, fg = MODE_COLORS[mode]
         self.mode_label.configure(text=MODE_TEXT[mode], bg=bg, fg=fg)
+
+        # 구두점 치환은 눈에 안 보이는 설정이라 현재 상태를 힌트에 박아 둔다
+        punct = "。" if snap["punctuation"] else "."
+        self.hint_label.configure(
+            text=f"Ctrl+Alt+J 끄기 · K 가나전환 · P 구두점({punct}) · Q 종료")
 
         hangul, reading = snap["hangul"], snap["reading"]
         self.hangul_label.configure(text=hangul)

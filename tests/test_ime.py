@@ -34,13 +34,17 @@ VK_LEFT = 0x25
 VK_UP, VK_DOWN = 0x26, 0x28
 VK_MINUS = 0xBD
 VK_PERIOD = 0xBE
+VK_COMMA = 0xBC
+VK_LBRACKET = 0xDB
+VK_RBRACKET = 0xDD
 
 
 class Keyboard:
     """키 시퀀스를 IME 에 먹여 주는 헬퍼."""
 
-    def __init__(self, enabled=True, katakana=False):
-        self.ime = ime_mod.KoreanKanaIME(enabled=enabled, katakana=katakana)
+    def __init__(self, enabled=True, katakana=False, punctuation=True):
+        self.ime = ime_mod.KoreanKanaIME(
+            enabled=enabled, katakana=katakana, punctuation=punctuation)
         self.shift = False
         SENT.clear()
         VKS.clear()
@@ -193,7 +197,8 @@ def run():
         check("새 입력 시작", kb.reading(), "は")
 
         # ------------------------------------------------ 선택 중 기호 키는 재주입
-        kb = Keyboard()
+        # (구두점 치환을 끈 상태. 켜져 있으면 . 은 。 로 바뀐다 - 아래 따로 검사)
+        kb = Keyboard(punctuation=False)
         kb.type_keys("xhdnzydn")
         kb.press(VK_SPACE)
         chosen = kb.chosen()
@@ -292,16 +297,62 @@ def run():
     check("가타카나는 후보 없이 확정", kb.committed(), "ラーメン")
     check("가타카나 모드엔 후보창 없음", kb.cands(), [])
 
-    # ---------------------------------------------------- 순서 보장
+    # ---------------------------------------------------- 구두점 치환
     kb = Keyboard()
+    kb.type_keys("gk")
+    check("구두점 키 삼킴", kb.press(VK_PERIOD), True)
+    check("확정분 + 。", kb.committed(), "は。")
+    check("재주입은 안 한다", kb.vks(), [])
+
+    kb = Keyboard()
+    check("빈 상태에서도 치환", kb.press(VK_COMMA), True)
+    check("、 만 들어간다", kb.committed(), "、")
+
+    kb = Keyboard()
+    kb.press(VK_LBRACKET)
+    kb.press(VK_RBRACKET)
+    check("괄호 치환", kb.committed(), "「」")
+
+    # Shift 를 누르면 > < { } 이므로 건드리지 않는다
+    kb = Keyboard()
+    check("Shift+. 는 통과", kb.press(VK_PERIOD, shift=True), False)
+    check("Shift 는 치환 안 함", kb.committed(), "")
+
+    # 후보 선택 중에도 확정 후 치환
+    if has_dict:
+        kb = Keyboard()
+        kb.type_keys("xhdnzydn")
+        kb.press(VK_SPACE)
+        chosen = kb.chosen()
+        check("선택 중 구두점 삼킴", kb.press(VK_PERIOD), True)
+        check("후보 확정 + 。", kb.committed(), chosen + "。")
+        check("선택 중에도 재주입 없음", kb.vks(), [])
+
+    # 꺼 두면 원래대로 (삼키고 재주입)
+    kb = Keyboard(punctuation=False)
+    kb.type_keys("gk")
+    check("꺼짐: 기호 키 삼킴", kb.press(VK_PERIOD), True)
+    check("꺼짐: 확정만", kb.committed(), "は")
+    check("꺼짐: 기호 키 재주입", kb.vks(), [VK_PERIOD])
+
+    kb = Keyboard(punctuation=False)
+    check("꺼짐: 빈 상태 기호 키는 통과", kb.press(VK_PERIOD), False)
+    check("꺼짐: 재주입 없음", kb.vks(), [])
+
+    # 핫키로 토글
+    kb = Keyboard()
+    check("기본값은 켜짐", kb.snap()["punctuation"], True)
+    kb.hotkey(ime_mod.HOTKEY_PUNCT)
+    check("Ctrl+Alt+P 로 꺼짐", kb.snap()["punctuation"], False)
+
+    # ---------------------------------------------------- 순서 보장
+    kb = Keyboard(punctuation=False)
     kb.type_keys("gk")
     check("기호 키 삼킴", kb.press(VK_PERIOD), True)
     check("확정분 먼저", kb.committed(), "は")
     check("기호 키 재주입", kb.vks(), [VK_PERIOD])
 
     kb = Keyboard()
-    check("빈 상태 기호 키는 통과", kb.press(VK_PERIOD), False)
-    check("빈 상태는 재주입 없음", kb.vks(), [])
     check("빈 상태 Space 는 통과", kb.press(VK_SPACE), False)
 
     # ---------------------------------------------------- 꺼진 상태는 전부 통과
