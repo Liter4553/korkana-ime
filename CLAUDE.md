@@ -33,6 +33,7 @@ python ime.py --convert 토우쿄우 --kanji
 python tests/test_kana.py          # 변환 규칙 70건
 python tests/test_ime.py           # 키 처리 (훅 없이)
 python tests/test_layout.py        # 오버레이 배치 (창이 잠깐 뜸)
+python tests/smoke_overlay.py      # 진짜 훅 + 진짜 창 (창이 잠깐 뜸)
 
 python make_release.py             # release/ 에 설치 파일 + 포터블 zip
 ```
@@ -201,7 +202,7 @@ Mozc 사전이 **97MB**(sys.dic 82.8 + matrix.bin 14.3). onefile은 실행할 �
 | | |
 |---|---|
 | 변환 규칙·키 처리·배치 | 테스트로 전부 자동 검증 |
-| 훅 설치·오버레이 렌더링 | 스모크로 확인 |
+| 훅 설치·오버레이 렌더링 | `tests/smoke_overlay.py` |
 | **실제 물리 타자가 다른 앱에 들어가는 것** | **자동 검증 불가** |
 
 마지막은 원리상 불가능하다. 우리가 `SendInput`으로 보내는 키에는 주입

@@ -295,6 +295,7 @@ candidates(convert("와타시하가쿠세이데스"))  # ['私は学生です', 
 python tests/test_kana.py
 python tests/test_ime.py
 python tests/test_layout.py
+python tests/smoke_overlay.py
 ```
 
 `test_kana.py`는 변환 규칙 70건. `test_ime.py`는 키 처리(버퍼링·한자 후보
@@ -303,7 +304,9 @@ mozcpy가 없으면 한자 부분만 건너뛴다.
 
 `test_layout.py`는 오버레이 배치를 검증한다. 가짜 캐럿을 화면 위에서 아래까지
 옮기면서, 후보창이 늘 작업 영역 안에 들어오고 캐럿을 가리지 않는지 본다.
-화면이 필요하므로 창이 잠깐 떴다 사라진다.
+
+`smoke_overlay.py`는 **진짜 키보드 훅을 걸고 진짜 창을 띄워** 둘이 크래시
+없이 서는지 본다. 뒤의 둘은 화면이 필요하므로 창이 잠깐 떴다 사라진다.
 
 ## 빌드
 
