@@ -18,7 +18,12 @@ _failed = False
 
 def log_path() -> str:
     """로그 파일 위치. exe 면 LOCALAPPDATA, 소스면 프로젝트 폴더."""
-    if getattr(sys, "frozen", False):
+    if sys.platform == "darwin":
+        base = os.path.expanduser("~/Library/Logs/KorKanaIME")
+    elif sys.platform == "linux":
+        base = os.path.join(os.environ.get("XDG_STATE_HOME") or
+                            os.path.expanduser("~/.local/state"), "KorKanaIME")
+    elif getattr(sys, "frozen", False):
         base = os.path.join(
             os.environ.get("LOCALAPPDATA", os.path.expanduser("~")),
             "KorKanaIME")
