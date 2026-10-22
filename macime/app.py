@@ -35,7 +35,7 @@ class KorKanaInputController(IMKInputController):
         self = objc.super(KorKanaInputController, self).initWithServer_delegate_client_(
             server, delegate, client)
         if self is not None:
-            self.session = NativeSession()
+            self.session = NativeSession(automatic_candidates=True)
             self.panel = _panel_for_server(server)
             self.panel_items = ()
             self.syncing = False
@@ -117,7 +117,7 @@ class KorKanaInputController(IMKInputController):
             return
         index = self._candidate_index(candidate)
         if index is not None:
-            self.session.controller.comp.select(index)
+            self.session.highlight(index)
             self._render(self.client())
 
     def candidateSelected_(self, candidate):

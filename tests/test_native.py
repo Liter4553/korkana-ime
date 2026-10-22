@@ -196,5 +196,85 @@ assert NativeSession().preedit() == ''
         self.assertIn("はじめまして", result.stdout)
 
 
+class AutomaticCandidateTests(unittest.TestCase):
+    def setUp(self):
+        self.session = NativeSession(automatic_candidates=True)
+        dictionary = patch("korkana.native.candidates",
+                           side_effect=lambda reading: ["候補:" + reading, reading])
+        self.lookup = dictionary.start()
+        self.addCleanup(dictionary.stop)
+
+    def type(self, text):
+        for char in text:
+            result = self.session.process(keys.from_character(char), char)
+            self.assertTrue(result.handled)
+            self.assertEqual(result.commits, ())
+
+    def test_preview_updates_without_committing_or_splitting_phrase(self):
+        self.type("gk")
+        self.assertEqual(self.session.snapshot()["candidates"], ["候補:は", "は"])
+        self.assertFalse(self.session.snapshot()["selecting"])
+        self.assertEqual(self.session.preedit(), "は")
+        self.type("sl")
+        self.assertEqual(self.session.snapshot()["hangul"], "하니")
+        self.assertEqual(self.session.snapshot()["candidates"], ["候補:はに", "はに"])
+        self.assertEqual(self.session.process(keys.VK_RETURN).commits, ("はに",))
+        self.assertEqual(self.session.snapshot()["candidates"], [])
+
+    def test_preview_navigation_number_and_click(self):
+        self.type("gk")
+        self.assertEqual(self.session.select(0).commits, ("候補:は",))
+        self.type("gk")
+        self.assertEqual(self.session.process(ord("2"), "2").commits, ("は",))
+        self.type("gk")
+        self.assertTrue(self.session.process(0x28).handled)
+        self.assertEqual(self.session.preedit(), "候補:は")
+        self.session.process(0x28)
+        self.assertEqual(self.session.process(keys.VK_RETURN).commits, ("は",))
+
+    def test_space_selects_first_candidate_then_cycles(self):
+        with patch("korkana.composition.candidates", return_value=["葉", "は"]):
+            self.type("gk")
+            self.session.process(keys.VK_SPACE)
+            self.assertEqual(self.session.preedit(), "葉")
+            self.session.process(keys.VK_SPACE)
+            self.assertEqual(self.session.preedit(), "は")
+
+    def test_backspace_edits_preview_and_escape_dismisses_until_edit(self):
+        self.type("gksl")
+        self.session.process(keys.VK_BACK)
+        self.assertEqual(self.session.preedit(), "はㄴ")
+        self.assertEqual(self.session.snapshot()["candidates"], ["候補:は", "は"])
+        self.session.process(keys.VK_ESCAPE)
+        self.assertEqual(self.session.snapshot()["candidates"], [])
+        self.assertEqual(self.session.preedit(), "はㄴ")
+        self.type("l")
+        self.assertEqual(self.session.snapshot()["candidates"], ["候補:はに", "はに"])
+        self.session.process(keys.VK_ESCAPE)
+        self.session.process(keys.VK_ESCAPE)
+        self.assertEqual(self.session.preedit(), "")
+
+    def test_cancel_conversion_does_not_reopen_preview(self):
+        self.type("gk")
+        self.session.highlight(0)
+        self.session.process(keys.VK_ESCAPE)
+        self.assertEqual(self.session.preedit(), "は")
+        self.assertEqual(self.session.snapshot()["candidates"], [])
+
+    def test_reset_katakana_and_unchanged_reading(self):
+        self.type("gk")
+        self.session.snapshot()
+        count = self.lookup.call_count
+        self.session.preedit()
+        self.session.snapshot()
+        self.assertEqual(self.lookup.call_count, count)
+        self.session.reset()
+        self.assertEqual(self.session.snapshot()["candidates"], [])
+        self.session.controller.katakana = True
+        self.type("gk")
+        self.assertEqual(self.session.snapshot()["candidates"], [])
+        self.assertEqual(self.session.commit().commits, ("ハ",))
+
+
 if __name__ == "__main__":
     unittest.main()
