@@ -1,5 +1,9 @@
 # 한국어 발음 일본어 IME
 
+> **Linux / macOS 실험적 포팅 추가:** Linux는 IBus, macOS는 InputMethodKit으로
+> 연결한다. 설치·빌드 방법과 검증 상태는 [포팅 안내](docs/PORTING.md)를 참고한다.
+> 두 플랫폼의 실제 데스크톱 입력 검증은 아직 필요하다. 아래 Windows 사용법은 그대로다.
+
 한글 발음대로 치면 일본어로 바꿔 주는 Windows 전역 입력기. 한자 변환까지 된다.
 
 ```

@@ -1,0 +1,4 @@
+# Build on macOS using a native Python (python.org or Homebrew).
+pyobjc-framework-InputMethodKit>=10.0
+pyobjc-framework-Cocoa>=10.0
+py2app>=0.28.8
