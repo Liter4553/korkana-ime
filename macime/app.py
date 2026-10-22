@@ -11,8 +11,23 @@ from InputMethodKit import (IMKInputController, IMKServer, IMKCandidates,
                             IMKCandidatesSendServerKeyEventFirst)
 from PyObjCTools import AppHelper
 
+import applog
 from korkana.native import NativeSession
 from macime.keymap import translate
+
+
+_candidate_panel = None
+
+
+def _panel_for_server(server):
+    global _candidate_panel
+    if _candidate_panel is None:
+        # IMKServer also consults its candidate panel after an input controller
+        # closes. Keep one panel alive for the entire server, not per session.
+        _candidate_panel = IMKCandidates.alloc().initWithServer_panelType_(
+            server, kIMKSingleColumnScrollingCandidatePanel)
+        _candidate_panel.setAttributes_({IMKCandidatesSendServerKeyEventFirst: True})
+    return _candidate_panel
 
 
 class KorKanaInputController(IMKInputController):
@@ -21,12 +36,11 @@ class KorKanaInputController(IMKInputController):
             server, delegate, client)
         if self is not None:
             self.session = NativeSession()
-            self.panel = IMKCandidates.alloc().initWithServer_panelType_(
-                server, kIMKSingleColumnScrollingCandidatePanel)
-            self.panel.setAttributes_({IMKCandidatesSendServerKeyEventFirst: True})
+            self.panel = _panel_for_server(server)
             self.panel_items = ()
             self.syncing = False
             self.has_marked = False
+            applog.log("[macOS] input context opened")
         return self
 
     def recognizedEvents_(self, sender):
@@ -55,10 +69,11 @@ class KorKanaInputController(IMKInputController):
         items = tuple(state["candidates"])
         self.syncing = True
         try:
-            if items != self.panel_items:
-                self.panel_items = items
-                self.panel.updateCandidates()
+            self.panel_items = items
             if items:
+                # The shared panel may previously have displayed another
+                # context's candidates, even when this context is unchanged.
+                self.panel.updateCandidates()
                 identifier = self.panel.candidateStringIdentifier_(items[state["index"]])
                 self.panel.selectCandidateWithIdentifier_(identifier)
                 self.panel.show_(kIMKLocateCandidatesBelowHint)
@@ -73,11 +88,17 @@ class KorKanaInputController(IMKInputController):
         flags = event.modifierFlags()
         shift = bool(flags & NSEventModifierFlagShift)
         key, text = translate(event.keyCode(), shift)
-        return self._apply(self.session.process(
-            key, text, shift=shift,
-            ctrl=bool(flags & NSEventModifierFlagControl),
-            alt=bool(flags & NSEventModifierFlagOption),
-            meta=bool(flags & NSEventModifierFlagCommand)), client)
+        try:
+            return self._apply(self.session.process(
+                key, text, shift=shift,
+                ctrl=bool(flags & NSEventModifierFlagControl),
+                alt=bool(flags & NSEventModifierFlagOption),
+                meta=bool(flags & NSEventModifierFlagCommand)), client)
+        except Exception:
+            applog.exception("macOS input callback")
+            self.session.reset()
+            self.panel.hide()
+            return False
 
     def candidates_(self, sender):
         return list(self.panel_items)
@@ -111,11 +132,16 @@ class KorKanaInputController(IMKInputController):
 
     def deactivateServer_(self, sender):
         self.session.reset()
-        self._render(sender)
+        if self.has_marked:
+            sender.setMarkedText_selectionRange_replacementRange_(
+                "", NSMakeRange(0, 0), NSMakeRange(NSNotFound, 0))
+            self.has_marked = False
+        self.panel.hide()
 
     def inputControllerWillClose(self):
         self.session.reset()
         self.panel.hide()
+        applog.log("[macOS] input context closed")
 
 
 def main():
@@ -129,6 +155,8 @@ def main():
         connection, bundle.bundleIdentifier())
     if server is None:
         raise RuntimeError("InputMethodKit server initialization failed")
+    _panel_for_server(server)
+    applog.log("[macOS] input server started")
     AppHelper.runEventLoop()
     return app, server
 

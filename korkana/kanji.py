@@ -6,6 +6,8 @@ mozcpy 가 없어도 import 는 성공하고, 그 경우 후보는 읽기 그대
 즉 사전이 없으면 가나 입력기로 동작하고, 있으면 한자 변환까지 된다.
 """
 
+import os
+
 MAX_CANDIDATES = 9          # 1~9 숫자키로 고를 수 있는 만큼
 _MAX_READING = 60           # 너무 긴 입력은 변환을 시도하지 않는다
 
@@ -22,6 +24,12 @@ def _load():
     _loaded = True
     try:
         import mozcpy
+        if os.name == "posix":
+            # mozcpy 0.3 builds an unquoted MeCab command line. macOS installs
+            # input methods under "Input Methods", so quote the dictionary path.
+            from mozcpy import mozcpy as backend
+            directory = backend.DICT_DIR.replace("\\", "\\\\").replace('"', '\\"')
+            backend.MECAB_ARGS = f'-d "{directory}" -r /dev/null'
         _converter = mozcpy.Converter()
     except Exception as exc:
         _converter = None

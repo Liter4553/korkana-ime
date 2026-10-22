@@ -2,15 +2,16 @@
 
 현재 상태: **실험적 구현**. 공통 키 처리, Linux IBus 어댑터, macOS
 InputMethodKit 어댑터와 빌드 경로를 추가했다. Windows에서 변환·공통 상태
-기계·키 매핑·설치 파일 생성을 검증했다. **실제 Linux/macOS 데스크톱 입력과
-macOS `.app` 빌드는 아직 이 작업 환경에서 실행하지 못했다.** 정식 지원이나
-검증된 배포판으로 취급하지 않는다.
+기계·키 매핑·설치 파일 생성을 검증했다. 추가로 macOS 15.7.5 Apple Silicon에서
+Mozc 포함 `.app` 빌드·설치와 TextEdit의 가나 입력·한자 변환·확정을 확인했다.
+Linux 실기기, Intel Mac, 재로그인 후 자동 시작과 다른 앱의 호환성은 미검증이다.
+정식 지원이나 검증된 배포판으로 취급하지 않는다.
 
 | 플랫폼 | 연결 방식 | 검증 범위 |
 |---|---|---|
 | Windows | 기존 Win32 훅 + tkinter 오버레이 | 기존 키 처리 회귀 테스트 통과 |
 | Linux | IBus 엔진 + 네이티브 preedit/후보창 | 공통 로직·설치 생성 테스트, 실기기 검증 필요 |
-| macOS | InputMethodKit + PyObjC + py2app | 공통 로직·물리 키 매핑 테스트, 네이티브 빌드·실기기 검증 필요 |
+| macOS | InputMethodKit + PyObjC + py2app | Apple Silicon 빌드·설치·TextEdit 가나/한자 입력 확인, 나머지 환경 검증 필요 |
 
 ## 공통 구조
 
@@ -99,6 +100,13 @@ KorKana를 추가하고 메뉴 막대에서 선택한다. `python ime.py`로 mac
 사용한다. Python과 PyObjC는 py2app 번들에 포함되므로 빌드 후 가상환경은
 런타임 의존성이 아니다.
 
+Mozc를 포함한 빌드에서는 MeCab 공유 라이브러리를 앱의 `Contents/Frameworks`에
+배치한다. 일부 universal2 MeCab wheel은 긴 설치 이름을 기록할 Mach-O 헤더
+공간이 부족하므로, 깊은 Python 확장 디렉터리 대신 이 짧은 경로를 사용한다.
+`Input Methods`처럼 공백이 있는 설치 경로도 사전 인자에서 따옴표로 처리한다.
+후보창은 서버 전체에서 하나를 유지한다. 입력 컨트롤러마다 만들고 해제하면
+컨트롤러 종료 후 서버가 후보창을 참조하는 과정에서 충돌할 수 있다.
+
 배포용 서명·공증, 설치 디스크 이미지, 자동 업데이트는 포함하지 않았다.
 외부 배포 전에는 해당 배포 절차와 실제 macOS에서의 입력 소스 등록을 검증한다.
 사전을 넣은 빌드에서는 번들 안의 Mozc 사전 데이터도 확인해야 한다.
@@ -133,6 +141,9 @@ Windows의 Ctrl+Alt+Q 종료는 네이티브 입력기 서버를 종료하지 �
 ```sh
 python tests/test_kana.py
 python -m unittest discover -s tests -p test_native.py -v
+python -m unittest discover -s tests -p test_kanji.py -v
+# macOS + PyObjC: 네이티브 컨트롤러 종료 후 후보창 수명 회귀 검사
+python -m unittest discover -s tests -p test_mac_runtime.py -v
 python ime.py --convert 하지메마시떼
 python ime.py --convert 라-멘 --katakana
 ```
@@ -140,6 +151,8 @@ python ime.py --convert 라-멘 --katakana
 기존 `tests/test_ime.py`, `test_layout.py`, `smoke_overlay.py`는 Windows 전용이다.
 네이티브 테스트는 사전 결과를 고정해 가나 전용 환경에서도 한자 후보 선택
 동작을 검증한다. **실제 Mozc 사전 품질이나 OS 연결을 검증하는 테스트는 아니다.**
+`test_kanji.py`는 POSIX에서 실제 Mozc 사전을 공백이 있는 경로에 연결하고 한자
+후보가 생성되는지 확인한다. mozcpy가 설치되지 않은 환경에서는 건너뛴다.
 Linux에서는 IBus 연결을, macOS에서는 PyObjC 컨트롤러와 앱 빌드를 각각
 확인해야 한다. 이 PR에는 GitHub Actions 설정을 포함하지 않았다.
 
